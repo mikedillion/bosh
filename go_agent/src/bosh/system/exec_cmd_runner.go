@@ -228,7 +228,7 @@ func NewExecCmdRunner(logger boshlog.Logger) CmdRunner {
 	return execCmdRunner{logger}
 }
 
-func (r execCmdRunner) RunComplexCommand(cmd Command) (string, string, int, error) {
+func (r execCmdRunner) RunComplexCommandAndTruncateOutput(cmd Command) (string, string, int, error) {
 	process := newExecProcess(r.buildComplexCommand(cmd), r.logger)
 
 	err := process.Start()

@@ -12,11 +12,14 @@ import (
 type FakeCmdRunner struct {
 	commandResults     map[string][]FakeCmdResult
 	commandResultsLock sync.Mutex
+	truncatedCommandResults     map[string][]FakeCmdResult
+	truncatedCommandResultsLock sync.Mutex
 
 	processes     map[string][]*FakeProcess
 	processesLock sync.Mutex
 
 	RunComplexCommands   []boshsys.Command
+	RunComplexCommandsAndTruncateOutput   []boshsys.Command
 	RunCommands          [][]string
 	RunCommandsWithInput [][]string
 
@@ -83,7 +86,17 @@ func (r *FakeCmdRunner) RunComplexCommand(cmd boshsys.Command) (string, string, 
 	r.RunComplexCommands = append(r.RunComplexCommands, cmd)
 
 	runCmd := append([]string{cmd.Name}, cmd.Args...)
-	return r.getOutputsForCmd(runCmd)
+	return r.getOutputsForCmd(runCmd, false)
+}
+
+func (r *FakeCmdRunner) RunComplexCommandAndTruncateOutput(cmd boshsys.Command, numLinesOutput int) (string, string, int, error) {
+	r.truncatedCommandResultsLock.Lock()
+	defer r.truncatedCommandResultsLock.Unlock()
+
+	r.RunComplexCommandsAndTruncateOutput = append(r.RunComplexCommandsAndTruncateOutput, cmd)
+
+	runCmd := append([]string{cmd.Name}, cmd.Args...)
+	return r.getOutputsForCmd(runCmd, true)
 }
 
 func (r *FakeCmdRunner) RunComplexCommandAsync(cmd boshsys.Command) (boshsys.Process, error) {
@@ -109,7 +122,7 @@ func (r *FakeCmdRunner) RunCommand(cmdName string, args ...string) (string, stri
 	runCmd := append([]string{cmdName}, args...)
 	r.RunCommands = append(r.RunCommands, runCmd)
 
-	return r.getOutputsForCmd(runCmd)
+	return r.getOutputsForCmd(runCmd, false)
 }
 
 func (r *FakeCmdRunner) RunCommandWithInput(input, cmdName string, args ...string) (string, string, int, error) {
@@ -119,7 +132,7 @@ func (r *FakeCmdRunner) RunCommandWithInput(input, cmdName string, args ...strin
 	runCmd := append([]string{input, cmdName}, args...)
 	r.RunCommandsWithInput = append(r.RunCommandsWithInput, runCmd)
 
-	return r.getOutputsForCmd(runCmd)
+	return r.getOutputsForCmd(runCmd, false)
 }
 
 func (r *FakeCmdRunner) CommandExists(cmdName string) bool {
@@ -142,7 +155,7 @@ func (r *FakeCmdRunner) AddProcess(fullCmd string, process *FakeProcess) {
 	r.processes[fullCmd] = append(processes, process)
 }
 
-func (r *FakeCmdRunner) getOutputsForCmd(runCmd []string) (string, string, int, error) {
+func (r *FakeCmdRunner) getOutputsForCmd(runCmd []string, truncate bool) (string, string, int, error) {
 	fullCmd := strings.Join(runCmd, " ")
 	results, found := r.commandResults[fullCmd]
 	if found {
@@ -157,6 +170,11 @@ func (r *FakeCmdRunner) getOutputsForCmd(runCmd []string) (string, string, int, 
 		}
 
 		return result.Stdout, result.Stderr, result.ExitStatus, result.Error
+	}
+
+	// This would truncate the output for the command
+	if truncate {
+
 	}
 
 	return "", "", -1, nil

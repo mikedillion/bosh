@@ -38,6 +38,8 @@ type CmdRunner interface {
 
 	RunComplexCommandAsync(cmd Command) (Process, error)
 
+	RunComplexCommandAndTruncateOutput(cmd Command, numOutputLines int) (stdout string, stderr string, exitStatus int, err error)
+
 	RunCommand(cmdName string, args ...string) (stdout, stderr string, exitStatus int, err error)
 
 	RunCommandWithInput(input, cmdName string, args ...string) (stdout, stderr string, exitStatus int, err error)

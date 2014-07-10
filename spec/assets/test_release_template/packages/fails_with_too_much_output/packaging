@@ -1,0 +1,10 @@
+#!/bin/bash
+for i in $(seq 100)
+do
+  echo $i
+  echo $i >&2
+done
+echo END
+echo END >&2
+
+exit 1

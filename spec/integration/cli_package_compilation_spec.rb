@@ -95,4 +95,22 @@ describe 'cli: package compilation', type: :integration do
     end
     expect(packages.keys).to match_array(%w(foo bar baz))
   end
+
+  it 'returns an error and the last 100 lines of packaging output when packaging fails' do
+
+    failing_deployment_manifest_hash = Bosh::Spec::Deployments.simple_manifest
+    failing_deployment_manifest_hash['jobs'][0]['template'] = 'fails_with_too_much_output'
+    output, exit_code = deploy_simple(
+      manifest_hash: failing_deployment_manifest_hash, failure_expected: true, return_exit_code: true
+    )
+    expect(exit_code).to eq(1)
+
+    stdout = /stdout: '(?<stdout>[^']*)'/.match(output)[:stdout]
+    stderr = /stderr: '(?<stderr>[^']*)'/.match(output)[:stderr]
+    expect(stdout.split("\n").length).to eq(100)
+    expect(stdout).to match(/END\z/)
+    expect(stderr.split("\n").length).to eq(100)
+    expect(stderr).to match(/END\z/)
+
+  end
 end

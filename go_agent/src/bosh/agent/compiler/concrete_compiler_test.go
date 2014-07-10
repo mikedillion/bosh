@@ -2,7 +2,11 @@ package compiler_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -13,6 +17,7 @@ import (
 	fakepa "bosh/agent/applier/packageapplier/fakes"
 	. "bosh/agent/compiler"
 	fakeblobstore "bosh/blobstore/fakes"
+	bosherr "bosh/errors"
 	fakecmd "bosh/platform/commands/fakes"
 	boshsys "bosh/system"
 	fakesys "bosh/system/fakes"
@@ -242,6 +247,40 @@ func init() {
 				Expect(len(runner.RunComplexCommands)).To(Equal(1))
 				Expect(runner.RunComplexCommands[0]).To(Equal(expectedCmd))
 			})
+
+			It("returns an error with the last 100 lines if packaging fails", func() {
+				compressor.DecompressFileToDirCallBack = func() {
+					fs.WriteFileString("/fake-compile-dir/pkg_name/packaging", "hi")
+				}
+				var stdout string
+				var stderr string
+				cmdString := "Command string"
+				for i := 0; i < 100; i++ {
+					stdout = fmt.Sprintf("%s%s\n", stdout, strconv.Itoa(i))
+					stderr = fmt.Sprintf("%s%s\n", stderr, strconv.Itoa(i))
+				}
+				stdout = fmt.Sprintf("%sEND", stdout)
+				stderr = fmt.Sprintf("%sEND", stderr)
+				runner.AddCmdResult(
+					"bash -x packaging",
+					fakesys.FakeCmdResult{
+						Error: bosherr.WrapComplexError(errors.New(""), boshsys.NewExecError(cmdString, stdout, stderr)),
+					},
+				)
+
+				_, _, err := compiler.Compile(pkg, pkgDeps)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Running packaging script"))
+				outputRegexp, _ := regexp.Compile("stdout: '([^']*)'")
+				errRegexp, _ := regexp.Compile("stderr: '([^']*)'")
+				returnedOutput := outputRegexp.FindStringSubmatch(err.Error())[0]
+				returnedError := errRegexp.FindStringSubmatch(err.Error())[0]
+				Expect(len(strings.Split(returnedOutput, "\n"))).To(Equal(100))
+				Expect(len(strings.Split(returnedError, "\n"))).To(Equal(100))
+				Expect(returnedOutput).To(MatchRegexp("END\\z"))
+				Expect(returnedError).To(MatchRegexp("END\\z"))
+
+				})
 
 			It("does not run packaging script when script does not exist", func() {
 				_, _, err := compiler.Compile(pkg, pkgDeps)
